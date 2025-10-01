@@ -7,57 +7,62 @@ Original file is located at
     https://colab.research.google.com/drive/1FrfMD6l6gn8DgOeahkU608mhX5_NKO7S
 """
 
-pip install -qU langchain-google-genai
+# Required installations (uncomment if running in Colab)
+# pip install -qU langchain-google-genai
+# pip install crewai
+# pip install 'crewai[tools]'
+# pip install firecrawl-py
 
-from google.colab import userdata
-userdata.get('GEMINI_API')
-
-pip install crewai
-
-pip install 'crewai[tools]'
-
-pip install firecrawl-py
-
-from google.colab import userdata
-SEARCH_API_KEY = userdata.get('FIRECRAWL_API_KEY')
-
-from crewai import Agent, Task, Crew, LLM
 import os
+from crewai import Agent, Task, Crew, LLM
+from crewai_tools import FirecrawlSearchTool
 
-# === Define API Keys (Replace with your real keys or use environment variables) ===
-GEMINI_API = "AIzaSyA-wYNWKWqxKbbnc1zL7oXR8UDhtiXLrjw"
-from crewai_tools import(
-    FirecrawlSearchTool
-)
-search_tool=FirecrawlSearchTool(api_key=SEARCH_API_KEY)
-researcher=Agent(
+# === Define API Keys (set via environment variables) ===
+GEMINI_API = os.getenv("GEMINI_API")
+SEARCH_API_KEY = os.getenv("FIRECRAWL_API_KEY")
+
+if GEMINI_API is None or SEARCH_API_KEY is None:
+    raise ValueError("API keys not set! Please export GEMINI_API and FIRECRAWL_API_KEY.")
+
+# Initialize Firecrawl tool
+search_tool = FirecrawlSearchTool(api_key=SEARCH_API_KEY)
+
+# Define agents
+researcher = Agent(
     role="current affairs Researcher",
     goal="fetch top 5 current global news topics",
     backstory="an expert news researcher with access to latest information.",
     tools=[search_tool],
-    llm=LLM(model="gemini/gemini-2.0-flash",api_key=GEMINI_API)
+    llm=LLM(model="gemini/gemini-2.0-flash", api_key=GEMINI_API)
 )
-summarizer=Agent(
+
+summarizer = Agent(
     role="Note Maker",
-    goal="convert research into clear,short bullet points",
-    backstory="an expert in simplyfying complex topics for fast reading.",
-    llm=LLM(model="gemini/gemini-2.0-flash",api_key=GEMINI_API)
+    goal="convert research into clear, short bullet points",
+    backstory="an expert in simplifying complex topics for fast reading.",
+    llm=LLM(model="gemini/gemini-2.0-flash", api_key=GEMINI_API)
 )
-task1=Task(
+
+# Define tasks
+task1 = Task(
     description="search for the top 5 global news stories using the web.",
     expected_output="top 5 global news stories and its details",
     agent=researcher
 )
-task2=Task(
-    description="take the news articles from previous task and write clear 1-line summarises for each.",
+
+task2 = Task(
+    description="take the news articles from previous task and write clear 1-line summaries for each.",
     expected_output="summarised and consumable notes",
     agent=summarizer,
-    context=[task1] # Explicitly pass task1 as context to task2
+    context=[task1]
 )
-crew=Crew(
-    agents=[researcher,summarizer],
-    tasks=[task1,task2],
+
+# Create crew and run
+crew = Crew(
+    agents=[researcher, summarizer],
+    tasks=[task1, task2],
     process="sequential"
 )
-print(crew.kickoff())
 
+if __name__ == "__main__":
+    print(crew.kickoff())
